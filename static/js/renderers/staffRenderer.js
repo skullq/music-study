@@ -196,14 +196,9 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
             context.setFont("Arial", 14, "bold");
             context.setFillStyle("#e74c3c");
             
-            let diatonic = [];
-            if (scaleType === 'minor') {
-                if (stackChords === '4') diatonic = ['im7', 'iiø7', 'IIImaj7', 'ivm7', 'vm7', 'VImaj7', 'VII7', 'im7'];
-                else diatonic = ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII', 'i'];
-            } else {
-                if (stackChords === '4') diatonic = ['Imaj7', 'ii7', 'iii7', 'IVmaj7', 'V7', 'vi7', 'viiø7', 'Imaj7'];
-                else diatonic = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°', 'I'];
-            }
+            const diatonic = scaleType === 'minor'
+                ? (stackChords === '4' ? ['im7', 'iiø7', 'IIImaj7', 'ivm7', 'vm7', 'VImaj7', 'VII7', 'im7'] : ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII', 'i'])
+                : (stackChords === '4' ? ['Imaj7', 'ii7', 'iii7', 'IVmaj7', 'V7', 'vi7', 'viiø7', 'Imaj7'] : ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°', 'I']);
 
             for (let i = 0; i < notes.length; i++) {
                 const x = notes[i].getAbsoluteX() + 15;
@@ -265,14 +260,18 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
                     let cleanNote = notesData[0].pitch.replace(/[0-9]/g, '').replace(/-/g, 'b');
                     let chordName = cleanNote;
                     
-                    if (scaleType === 'minor') chordName += 'm';
-                    else if (scaleType === 'diminished') chordName += 'dim';
-                    else if (scaleType === 'augmented') chordName += 'aug';
-                    else if (scaleType === 'maj7') chordName += 'maj7';
-                    else if (scaleType === 'm7') chordName += 'm7';
-                    else if (scaleType === '7') chordName += '7';
-                    else if (scaleType === 'm7b5') chordName += 'm7b5';
-                    else if (scaleType === 'dim7') chordName += 'dim7';
+                    const chordSuffix = {
+                        'minor': 'm',
+                        'diminished': 'dim',
+                        'augmented': 'aug',
+                        'maj7': 'maj7',
+                        'm7': 'm7',
+                        '7': '7',
+                        'm7b5': 'm7b5',
+                        'dim7': 'dim7'
+                    };
+                    
+                    if (chordSuffix[scaleType]) chordName += chordSuffix[scaleType];
 
                     context.save();
                     context.setFont("Arial", 15, "bold");

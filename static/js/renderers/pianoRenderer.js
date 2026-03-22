@@ -39,7 +39,6 @@ window.highlightPianoKeys = function(midisArray) {
         const el = document.querySelector(`#piano-container .key[data-midi="${midi}"]`);
         if (el) el.classList.add('active');
     });
-    // 이전에 남아있던 1.5초 뒤 복구되는 setTimeout 코드가 있다면 이곳에서 완전히 제거되어야 합니다.
 };
 
 /**
