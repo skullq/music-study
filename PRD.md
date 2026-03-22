@@ -25,8 +25,8 @@
         * static/index.html: 한 화면에 꽉 차는 컴팩트한 중앙 정렬 레이아웃 구성. 피아노 건반 및 기타 지판용 CSS 스타일링 완료.
         * static/js/api.js: FastAPI 연동, URL 인코딩 처리(샵/플랫 대응), 선택된 스케일/코드에 맞춘 동적 컴포넌트 제목 업데이트 기능.
         * static/js/renderers/:
-            * staffRenderer.js: VexFlow 기반 오선지 렌더링. 임시표 자동 계산. 스케일 렌더링 시 온음/반음(W/H) 기호 시각화, 코드 렌더링 시 블록 코드(Block Chord) 및 로마 숫자(I, III, V) 표기. 클릭 시 빨간색 하이라이팅 기능.
-            * pianoRenderer.js: 2옥타브 분량의 인터랙티브 건반 UI. 스케일 구성음 및 음표 이름 라벨링. 건반 위에 온음/반음 간격 SVG 오버레이. 건반 클릭 시 Web Audio API를 통한 피아노 소리 재생.
+            * staffRenderer.js: VexFlow 기반 가로폭이 넓은 오선지 렌더링. 임시표 자동 계산. 스케일 렌더링 시 온음/반음 간격 시각화, 로마 숫자(I, ii, V 등) 및 실제 다이아토닉 코드 네임(Cmaj7, Dm 등) 동시 표기. 클릭 시 빨간색 하이라이팅.
+            * pianoRenderer.js: 2옥타브 분량의 인터랙티브 건반 UI. 스케일 구성음 및 음표 이름 라벨링. 불필요한 텍스트 오버레이를 제거하여 순수 피아노 건반의 역할에 충실하도록 디자인. 건반 클릭 시 Web Audio API를 통한 사운드 재생.
             * guitarRenderer.js: 6번줄 15프렛 기타 지판 UI 완벽 구현. 근음(Root)과 일반 구성음 색상 구분. 지판 클릭 시 소리 재생 및 오선지 연동.
 
 📸 스크린샷 (Screenshots)
