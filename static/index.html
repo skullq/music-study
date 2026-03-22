@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>통합 음악 시각화 웹 서비스</title>
+    <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 10px; background-color: #f5f5f5; margin: 0; }
+        h1 { text-align: center; color: #333; margin: 10px 0 15px 0; font-size: 24px; }
+        .container { display: flex; flex-direction: column; gap: 10px; }
+        .view-box { background: white; border: 1px solid #ccc; border-radius: 8px; padding: 10px; text-align: center; }
+        .view-box h3 { margin: 5px 0 10px 0; font-size: 18px; }
+        #controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; }
+        #controls select, #controls button { font-size: 16px; padding: 8px 16px; cursor: pointer; border-radius: 5px; border: 1px solid #aaa; }
+        #controls button { background-color: #0984e3; color: white; font-weight: bold; border: none; }
+        #vexflow-container { display: flex; justify-content: center; margin-top: 10px; }
+        
+        /* 피아노 건반 스타일 */
+        #piano-container { text-align: center; }
+        .key { position: absolute; top: 0; box-sizing: border-box; border-radius: 0 0 4px 4px; transition: background 0.2s; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; user-select: none; }
+        .key.white { background: #fff; border: 1px solid #ccc; z-index: 1; box-shadow: 0 2px 2px rgba(0,0,0,0.1); color: #bbb; font-size: 13px; font-weight: bold; padding-bottom: 10px; transition: all 0.2s; }
+        .key.black { background: #222; border: 1px solid #000; z-index: 2; box-shadow: 0 2px 2px rgba(0,0,0,0.5); color: #666; font-size: 9px; padding-bottom: 5px; text-align: center; line-height: 1.2; transition: all 0.2s; }
+        
+        /* 활성화된(선택된) 건반 색상 */
+        .key.white.active { background: #74b9ff; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.4); font-size: 14px; font-weight: 900; }
+        .key.black.active { background: #0984e3; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); font-weight: bold; font-size: 10px; }
+        
+        /* 기타 지판 스타일 */
+        #guitar-container { text-align: center; padding-top: 10px; }
+        .fretboard { position: relative; width: 100%; max-width: 900px; height: 110px; background: #4e342e; border: 2px solid #212121; margin: 10px auto; display: flex; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-radius: 4px; }
+        .fret { border-right: 2px solid #95a5a6; position: relative; box-sizing: border-box; }
+        .fret.nut { background: #2c3e50; border-right: 6px solid #ecf0f1; }
+        .fret-marker { position: absolute; width: 16px; height: 16px; background: rgba(255, 255, 255, 0.25); border-radius: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        .string-line { position: absolute; left: 0; right: 0; background: #ecf0f1; box-shadow: 0 1px 2px rgba(0,0,0,0.8); z-index: 1; pointer-events: none; }
+        .string-label { position: absolute; left: -25px; color: #333; font-weight: bold; font-size: 13px; transform: translateY(-50%); z-index: 3; }
+        .note-dot { position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #0984e3; color: white; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 2; box-shadow: 1px 1px 3px rgba(0,0,0,0.6); cursor: pointer; transition: transform 0.1s; }
+        .note-dot:hover { transform: translate(-50%, -50%) scale(1.2); }
+        .note-dot.root { background: #e74c3c; }
+    </style>
+</head>
+<body>
+    <h1>통합 음악 시각화</h1>
+    
+    <div id="controls">
+        <select id="root-note">
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="E">E</option>
+            <option value="F">F</option>
+            <option value="G">G</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+        </select>
+        <select id="scale-type">
+            <option value="major">Major Scale</option>
+            <option value="minor">Minor Scale</option>
+            <option value="major_triad">Major Triad</option>
+            <option value="minor_triad">Minor Triad</option>
+            <option value="augmented_triad">Augmented Triad</option>
+            <option value="diminished_triad">Diminished Triad</option>
+        </select>
+        <button onclick="fetchAndRender()">렌더링</button>
+    </div>
+    
+    <div class="container">
+        <div class="view-box" id="staff-view">
+            <h3 id="staff-title">오선지</h3>
+            <div id="vexflow-container"></div>
+        </div>
+        <div class="view-box" id="piano-view">
+            <h3 id="piano-title">피아노 건반</h3>
+            <div id="piano-container">UI 업데이트 대기 중...</div>
+        </div>
+        <div class="view-box" id="guitar-view">
+            <h3 id="guitar-title">기타 지판</h3>
+            <div id="guitar-container">UI 업데이트 대기 중...</div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/renderers/staffRenderer.js"></script>
+    <script src="/js/renderers/pianoRenderer.js"></script>
+    <script src="/js/renderers/guitarRenderer.js"></script>
+</body>
+</html>
