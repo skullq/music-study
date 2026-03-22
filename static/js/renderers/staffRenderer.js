@@ -27,10 +27,10 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
     try {
         const VF = Vex.Flow;
         const renderer = new VF.Renderer(container, VF.Renderer.Backends.SVG);
-        renderer.resize(600, 200); // 기호를 그릴 여백을 위해 캔버스 높이 증가
+        renderer.resize(850, 230); // 기호를 그릴 여백(로마숫자 아래 텍스트 포함)을 위해 캔버스 높이 추가 증가 및 가로 넓이 확장
         
         const context = renderer.getContext();
-        const stave = new VF.Stave(10, 40, 500); // 위쪽 기호 공간 확보를 위해 오선지를 약간 아래로 이동
+        const stave = new VF.Stave(10, 40, 800); // 오선지 가로 길이 확장
         stave.addClef("treble").setContext(context).draw();
 
         // 백엔드에서 전달된 pitch(예: C4, B-4)를 VexFlow 포맷(c/4, bb/4)으로 변환
@@ -100,7 +100,7 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
         const voice = new VF.Voice({ num_beats: notes.length, beat_value: 4 });
         voice.addTickables(notes);
 
-        new VF.Formatter().joinVoices([voice]).format([voice], 450);
+        new VF.Formatter().joinVoices([voice]).format([voice], 750); // 음표 간격 넓게 배치
         voice.draw(context, stave);
         
         // 오선지에 그려진 각 음표(Note)에 클릭 이벤트 추가 (마우스로 직접 연주)
@@ -208,7 +208,43 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
             for (let i = 0; i < notes.length; i++) {
                 const x = notes[i].getAbsoluteX() + 15;
                 const y = 190; // 온음/반음 기호보다 살짝 아래에 배치
+                
+                context.setFont("Arial", 14, "bold");
+                context.setFillStyle("#e74c3c");
                 context.fillText(diatonic[i] || '', x - 8, y);
+
+                // 단일음(스케일), 3화음, 4화음 모드 상관없이 로마숫자 밑에 실제 코드 이름 표시
+                let cleanNote = notesData[i].pitch.replace(/[0-9]/g, '').replace(/-/g, 'b');
+                let chordName = cleanNote;
+                let roman = diatonic[i] || '';
+                
+                if (roman.includes('maj7')) chordName += 'maj7';
+                else if (roman.includes('ø7')) chordName += 'm7b5';
+                else if (roman.includes('7')) {
+                    let baseRoman = roman.replace(/[^a-zA-Z]/g, '');
+                    // 소문자 로마숫자(예: ii, iii, vi, im)인 경우 m7
+                    if (baseRoman === baseRoman.toLowerCase()) {
+                        chordName += 'm7';
+                    } else {
+                        chordName += '7';
+                    }
+                }
+                else if (roman.includes('°')) chordName += 'dim';
+                else {
+                    let baseRoman = roman.replace(/[^a-zA-Z]/g, '');
+                    if (baseRoman && baseRoman === baseRoman.toLowerCase()) {
+                        chordName += 'm';
+                    }
+                }
+                
+                context.save();
+                context.setFont("Arial", 13, "bold");
+                context.setFillStyle("#0984e3"); // 파란색 텍스트로 구분
+                
+                // 코드 이름 길이에 따라 x 좌표 살짝 보정 (가운데 정렬 느낌)
+                let offsetX = 4 + (chordName.length * 3);
+                context.fillText(chordName, x - offsetX, y + 20); // y를 더하여 로마숫자 밑으로 이동
+                context.restore();
             }
         } else if (dataType === 'chord') {
             context.setFont("Arial", 16, "bold");
@@ -223,6 +259,27 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
                 const text = romanNumerals[i] || '';
                 const offsetX = text === 'Chord' ? 20 : 8;
                 context.fillText(text, x - offsetX, y);
+
+                // 단일 화음(Chord) 렌더링 모드일 때 맨 앞 블록 코드 밑에 실제 코드 네임 표시
+                if (i === 0 && notesData.length > 0) {
+                    let cleanNote = notesData[0].pitch.replace(/[0-9]/g, '').replace(/-/g, 'b');
+                    let chordName = cleanNote;
+                    
+                    if (scaleType === 'minor') chordName += 'm';
+                    else if (scaleType === 'diminished') chordName += 'dim';
+                    else if (scaleType === 'augmented') chordName += 'aug';
+                    else if (scaleType === 'maj7') chordName += 'maj7';
+                    else if (scaleType === 'm7') chordName += 'm7';
+                    else if (scaleType === '7') chordName += '7';
+                    else if (scaleType === 'm7b5') chordName += 'm7b5';
+                    else if (scaleType === 'dim7') chordName += 'dim7';
+
+                    context.save();
+                    context.setFont("Arial", 15, "bold");
+                    context.setFillStyle("#e74c3c"); 
+                    context.fillText(chordName, x - 12, y + 22); // 로마숫자 밑으로 이동
+                    context.restore();
+                }
             }
         }
     } catch (e) {

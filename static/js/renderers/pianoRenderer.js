@@ -92,67 +92,11 @@ function renderPiano(notesData, dataType = 'scale', scaleType = 'major', stackCh
         }
     }
 
-    // 스케일일 경우 SVG를 이용해 온음/반음 기호 그리기 (건반 위 오버레이)
-    let svgHtml = '';
-    if (dataType === 'scale') {
-        let diatonic = [];
-        if (scaleType === 'minor') {
-            if (stackChords === '4') diatonic = ['im7', 'iiø7', 'IIImaj7', 'ivm7', 'vm7', 'VImaj7', 'VII7', 'im7'];
-            else diatonic = ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII', 'i'];
-        } else {
-            if (stackChords === '4') diatonic = ['Imaj7', 'ii7', 'iii7', 'IVmaj7', 'V7', 'vi7', 'viiø7', 'Imaj7'];
-            else diatonic = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°', 'I'];
-        }
-
-        svgHtml += `<svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; overflow: visible;">`;
-        for (let i = 0; i < notesData.length - 1; i++) {
-            const midi1 = notesData[i].piano_key;
-            const midi2 = notesData[i + 1].piano_key;
-            if (midi1 == null || midi2 == null) continue;
-
-            const diff = Math.abs(midi2 - midi1);
-            const x1 = midiToCenterX[midi1];
-            const x2 = midiToCenterX[midi2];
-            if (x1 === undefined || x2 === undefined) continue;
-
-            const midX = (x1 + x2) / 2;
-            const yStart = -5; // 건반 상단 바로 위 시작점
-            const yPeak = -30; // 더 위로 꺾이는 최고점
-
-            if (stackChords === '1') {
-                if (diff === 2) { // 온음 (역 ㄷ자 모양)
-                    svgHtml += `<path d="M ${x1} ${yStart} L ${x1} ${yPeak} L ${x2} ${yPeak} L ${x2} ${yStart}" stroke="#e74c3c" stroke-width="2" fill="none" stroke-linejoin="round" />`;
-                } else if (diff === 1) { // 반음 (∧ 모양)
-                    svgHtml += `<path d="M ${x1} ${yStart} L ${midX} ${yPeak} L ${x2} ${yStart}" stroke="#e74c3c" stroke-width="2" fill="none" stroke-linejoin="round" />`;
-                }
-            }
-            
-            let midis = [notesData[i].piano_key];
-            if (stackChords === '3') midis = notesData[i].triad_midis;
-            if (stackChords === '4') midis = notesData[i].seventh_midis;
-
-            // 건반 위에 다이아토닉 코드(장/단 로마숫자) 표시 (클릭 가능)
-            svgHtml += `<text x="${x1}" y="${yPeak - 5}" fill="#e74c3c" font-size="14" text-anchor="middle" font-weight="bold" style="pointer-events: auto; cursor: pointer;" onclick='playMultipleTones(${JSON.stringify(midis)})'>${diatonic[i]}</text>`;
-        }
-        
-        // 마지막 옥타브 음에 대한 다이아토닉 기호 표시
-        const lastIdx = notesData.length - 1;
-        const lastX = midiToCenterX[notesData[lastIdx].piano_key];
-        if (lastX !== undefined) {
-            let lastMidis = [notesData[lastIdx].piano_key];
-            if (stackChords === '3') lastMidis = notesData[lastIdx].triad_midis;
-            if (stackChords === '4') lastMidis = notesData[lastIdx].seventh_midis;
-            svgHtml += `<text x="${lastX}" y="-35" fill="#e74c3c" font-size="14" text-anchor="middle" font-weight="bold" style="pointer-events: auto; cursor: pointer;" onclick='playMultipleTones(${JSON.stringify(lastMidis)})'>${diatonic[lastIdx]}</text>`;
-        }
-        svgHtml += `</svg>`;
-    }
-
     // 생성된 건반들을 감싸는 피아노 몸체(board) 렌더링
     container.innerHTML = `
-        <div style="background: #333; padding: 55px 15px 15px 15px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin-top: 10px;">
+        <div style="background: #333; padding: 25px 15px 15px 15px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin-top: 10px;">
             <div style="position: relative; width: ${currentLeft}px; height: ${heightWhite}px; margin: 0 auto;">
                 ${keysHtml}
-                    ${svgHtml}
             </div>
         </div>
     `;
