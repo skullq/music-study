@@ -13,7 +13,8 @@
         .view-box h3 { margin: 5px 0 10px 0; font-size: 18px; }
         #controls { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: center; }
         #controls select, #controls button { font-size: 16px; padding: 8px 16px; cursor: pointer; border-radius: 5px; border: 1px solid #aaa; }
-        #controls button { background-color: #0984e3; color: white; font-weight: bold; border: none; }
+        #controls button { background-color: #0984e3; color: white; font-weight: bold; border: none; transition: opacity 0.2s; }
+        #controls button:hover { opacity: 0.8; }
         #vexflow-container { display: flex; justify-content: center; margin-top: 10px; }
         
         /* 피아노 건반 스타일 */
@@ -52,13 +53,16 @@
             <option value="A">A</option>
             <option value="B">B</option>
         </select>
-        <select id="scale-type">
-            <option value="major">Major Scale</option>
-            <option value="minor">Minor Scale</option>
-            <option value="major_triad">Major Triad</option>
-            <option value="minor_triad">Minor Triad</option>
-            <option value="augmented_triad">Augmented Triad</option>
-            <option value="diminished_triad">Diminished Triad</option>
+        <select id="category" onchange="updateTypes()">
+            <option value="scale">스케일 (Scale)</option>
+            <option value="triad">3화음 (Triad)</option>
+            <option value="seventh">7화음 (7th Chord)</option>
+        </select>
+        <select id="type"></select>
+        <select id="stack-chords">
+            <option value="1">단일음</option>
+            <option value="3">3화음 쌓기</option>
+            <option value="4">7화음 쌓기</option>
         </select>
         <button onclick="fetchAndRender()">렌더링</button>
     </div>
@@ -66,6 +70,7 @@
     <div class="container">
         <div class="view-box" id="staff-view">
             <h3 id="staff-title">오선지</h3>
+            <p style="font-size: 13px; color: #e74c3c; margin: 0 0 5px 0; font-weight: bold;">🎵 음표를 직접 클릭하여 소리를 들어보세요!</p>
             <div id="vexflow-container"></div>
         </div>
         <div class="view-box" id="piano-view">

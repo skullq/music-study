@@ -1,26 +1,26 @@
 window.currentStaffNotesData = null;
 window.currentDataType = 'scale';
-window.activeStaffMidi = null;
+window.currentScaleType = 'major';
+window.currentStackChords = '1';
+window.activeStaffMidis = [];
 
 window.highlightStaffNote = function(midi) {
-    window.activeStaffMidi = midi;
-    if (window.currentStaffNotesData) renderStaff(window.currentStaffNotesData, window.currentDataType);
-    
-    // 소리가 끝나는 시간(1.5초) 후 하이라이트 원상복구
-    setTimeout(() => {
-        if (window.activeStaffMidi === midi) {
-            window.activeStaffMidi = null;
-            if (window.currentStaffNotesData) renderStaff(window.currentStaffNotesData, window.currentDataType);
-        }
-    }, 1500);
+    window.highlightStaffNotes([midi]);
+};
+
+window.highlightStaffNotes = function(midisArray) {
+    window.activeStaffMidis = midisArray;
+    if (window.currentStaffNotesData) renderStaff(window.currentStaffNotesData, window.currentDataType, window.currentScaleType, window.currentStackChords);
 };
 
 /**
  * VexFlow 초기화 및 악보 그리기 로직
  */
-function renderStaff(notesData, dataType = 'scale') {
+function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackChords = '1') {
     window.currentStaffNotesData = notesData;
     window.currentDataType = dataType;
+    window.currentScaleType = scaleType;
+    window.currentStackChords = stackChords;
     const container = document.getElementById("vexflow-container");
     container.innerHTML = ""; // 기존 악보 초기화
 
@@ -35,26 +35,44 @@ function renderStaff(notesData, dataType = 'scale') {
 
         // 백엔드에서 전달된 pitch(예: C4, B-4)를 VexFlow 포맷(c/4, bb/4)으로 변환
         const notes = notesData.map(n => {
-            // 1. music21의 플랫('-') 기호를 VexFlow 플랫('b') 기호로 변환
-            let pitchName = n.pitch.toLowerCase().replace(/-/g, 'b');
-            const key = pitchName.replace(/([0-9])/, '/$1'); 
+            let pitchesToUse = [n.pitch];
+            if (dataType === 'scale') {
+                if (stackChords === '3') pitchesToUse = n.triad_pitches;
+                else if (stackChords === '4') pitchesToUse = n.seventh_pitches;
+            }
+
+            const keys = pitchesToUse.map(p => {
+                let pitchName = p.toLowerCase().replace(/-/g, 'b');
+                return pitchName.replace(/([0-9])/, '/$1'); 
+            });
             
-            const note = new VF.StaveNote({ keys: [key], duration: "q" });
+            const note = new VF.StaveNote({ keys: keys, duration: "q" });
             
-            // 2. 임시표(샵, 플랫)가 있는 경우 원본 데이터(n.pitch)를 기준으로 추가
-            // key.includes("b")를 사용하면 'B(시)' 음표('b/4')까지 플랫으로 인식되는 버그 방지
-            if (n.pitch.includes("-")) note.addModifier(new VF.Accidental("b"));
-            if (n.pitch.includes("#")) note.addModifier(new VF.Accidental("#"));
+            pitchesToUse.forEach((p, idx) => {
+                if (p.includes("-")) note.addModifier(new VF.Accidental("b"), idx);
+                if (p.includes("#")) note.addModifier(new VF.Accidental("#"), idx);
+            });
             
-            // 피아노 건반 클릭 시 해당 음표 하이라이팅 (빨간색)
-            if (n.piano_key === window.activeStaffMidi) {
+            let midisToUse = [n.piano_key];
+            if (dataType === 'scale') {
+                if (stackChords === '3') midisToUse = n.triad_midis;
+                else if (stackChords === '4') midisToUse = n.seventh_midis;
+            }
+
+            let isHighlighted = false;
+            if (window.activeStaffMidis.length > 0) {
+                // 배열이 완벽하게 일치할 때만 하이라이트 (교집합으로 인해 다른 화음이 켜지는 현상 원천 차단)
+                isHighlighted = JSON.stringify(midisToUse) === JSON.stringify(window.activeStaffMidis);
+            }
+
+            if (isHighlighted) {
                 note.setStyle({fillStyle: "#e74c3c", strokeStyle: "#e74c3c"});
             }
 
             return note;
         });
 
-        // 화음(Chord)일 경우, 마지막에 3화음이 합쳐진 블록 코드를 추가
+        // 화음(Chord)일 경우, 앞쪽에 3화음이 합쳐진 블록 코드를 추가
         if (dataType === 'chord' && notesData.length > 0) {
             const chordKeys = notesData.map(n => {
                 let pitchName = n.pitch.toLowerCase().replace(/-/g, 'b');
@@ -69,7 +87,13 @@ function renderStaff(notesData, dataType = 'scale') {
                 if (n.pitch.includes("#")) blockChord.addModifier(new VF.Accidental("#"), idx);
             });
             
-            notes.push(blockChord);
+            // 블록 코드(Chord 덩어리) 자체가 클릭되었을 때 빨간색으로 빛나도록 하이라이트 로직 추가
+            const blockChordMidis = notesData.map(n => n.piano_key);
+            if (window.activeStaffMidis.length > 0 && JSON.stringify(blockChordMidis) === JSON.stringify(window.activeStaffMidis)) {
+                blockChord.setStyle({fillStyle: "#e74c3c", strokeStyle: "#e74c3c"});
+            }
+
+            notes.unshift(blockChord);
         }
 
         // 박자 계산 (현재는 데이터 길이에 맞춰 유동적으로 렌더링)
@@ -79,76 +103,125 @@ function renderStaff(notesData, dataType = 'scale') {
         new VF.Formatter().joinVoices([voice]).format([voice], 450);
         voice.draw(context, stave);
         
-        if (dataType === 'scale') {
-            // 오선지 아래에 온음(Whole step) / 반음(Half step) 간격 기호 그리기
-            context.setStrokeStyle('#0984e3'); // 강조된 건반과 어울리는 파란색 계열
-            context.setLineWidth(2);
+        // 오선지에 그려진 각 음표(Note)에 클릭 이벤트 추가 (마우스로 직접 연주)
+        const noteGroups = container.querySelectorAll('.vf-stavenote');
+        noteGroups.forEach((el, i) => {
+            el.style.cursor = 'pointer';
+            
+            // 마우스 오버 시 클릭 가능하다는 시각적 피드백 제공
+            el.addEventListener('mouseover', () => el.style.opacity = '0.6');
+            el.addEventListener('mouseout', () => el.style.opacity = '1');
 
-            for (let i = 0; i < notes.length - 1; i++) {
-                const midi1 = notesData[i].piano_key;
-                const midi2 = notesData[i + 1].piano_key;
-                if (midi1 == null || midi2 == null) continue;
-
-                const diff = Math.abs(midi2 - midi1);
-
-                // 음표의 대략적인 중앙 X 좌표 계산 (getAbsoluteX()는 음표 왼쪽 끝 좌표이므로 +15 보정)
-                const x1 = notes[i].getAbsoluteX() + 15;
-                const x2 = notes[i + 1].getAbsoluteX() + 15;
-                
-                // 각 표시가 서로 떨어져 보이도록 좌우 여백(gap) 추가
-                const gap = 4;
-                const startX = x1 + gap;
-                const endX = x2 - gap;
-                const drawMidX = (startX + endX) / 2;
-                
-                // 4번째 음(인덱스 3)과 5번째 음(인덱스 4) 사이는 위로 그리기
-                const isTop = (i === 3); 
-
-                context.beginPath();
-                if (isTop) {
-                    const yTopStart = 45;
-                    const yTopPeak = 20;
-                    
-                    if (diff === 2) {
-                        context.moveTo(startX, yTopStart);
-                        context.lineTo(startX, yTopPeak);
-                        context.lineTo(endX, yTopPeak);
-                        context.lineTo(endX, yTopStart);
-                    } else if (diff === 1) {
-                        context.moveTo(startX, yTopStart);
-                        context.lineTo(drawMidX, yTopPeak - 2);
-                        context.lineTo(endX, yTopStart);
-                    }
-                } else {
-                    const yBotStart = 135;
-                    const yBotPeak = 170;
-                    
-                    if (diff === 2) {
-                        context.moveTo(startX, yBotStart);
-                        context.lineTo(startX, yBotPeak);
-                        context.lineTo(endX, yBotPeak);
-                        context.lineTo(endX, yBotStart);
-                    } else if (diff === 1) {
-                        context.moveTo(startX, yBotStart);
-                        context.lineTo(drawMidX, yBotPeak + 2);
-                        context.lineTo(endX, yBotStart);
+            el.addEventListener('click', () => {
+                let midisToPlay = [];
+                if (dataType === 'scale') {
+                    midisToPlay = [notesData[i].piano_key];
+                    if (stackChords === '3') midisToPlay = notesData[i].triad_midis;
+                    else if (stackChords === '4') midisToPlay = notesData[i].seventh_midis;
+                } else if (dataType === 'chord') {
+                    if (i === 0) {
+                        // 맨 앞의 블록 코드(Chord 덩어리)를 클릭했을 때
+                        midisToPlay = notesData.map(n => n.piano_key);
+                    } else {
+                        // 뒤쪽에 전개된 개별 구성음을 클릭했을 때
+                        midisToPlay = [notesData[i - 1].piano_key];
                     }
                 }
-                context.stroke();
+                if (window.playMultipleTones) window.playMultipleTones(midisToPlay);
+                if (window.highlightPianoKeys) window.highlightPianoKeys(midisToPlay);
+            });
+        });
+
+        if (dataType === 'scale') {
+            if (stackChords === '1') {
+                // 오선지 아래에 온음(Whole step) / 반음(Half step) 간격 기호 그리기 (단일음일 때만)
+                context.setStrokeStyle('#0984e3');
+                context.setLineWidth(2);
+
+                for (let i = 0; i < notes.length - 1; i++) {
+                    const midi1 = notesData[i].piano_key;
+                    const midi2 = notesData[i + 1].piano_key;
+                    if (midi1 == null || midi2 == null) continue;
+
+                    const diff = Math.abs(midi2 - midi1);
+
+                    // 음표의 대략적인 중앙 X 좌표 계산
+                    const x1 = notes[i].getAbsoluteX() + 15;
+                    const x2 = notes[i + 1].getAbsoluteX() + 15;
+                    
+                    // 각 표시가 서로 떨어져 보이도록 좌우 여백(gap) 추가
+                    const gap = 4;
+                    const startX = x1 + gap;
+                    const endX = x2 - gap;
+                    const drawMidX = (startX + endX) / 2;
+                    
+                    // 4번째 음(인덱스 3)과 5번째 음(인덱스 4) 사이는 위로 그리기
+                    const isTop = (i === 3); 
+
+                    context.beginPath();
+                    if (isTop) {
+                        const yTopStart = 45;
+                        const yTopPeak = 20;
+                        
+                        if (diff === 2) {
+                            context.moveTo(startX, yTopStart);
+                            context.lineTo(startX, yTopPeak);
+                            context.lineTo(endX, yTopPeak);
+                            context.lineTo(endX, yTopStart);
+                        } else if (diff === 1) {
+                            context.moveTo(startX, yTopStart);
+                            context.lineTo(drawMidX, yTopPeak - 2);
+                            context.lineTo(endX, yTopStart);
+                        }
+                    } else {
+                        const yBotStart = 135;
+                        const yBotPeak = 170;
+                        
+                        if (diff === 2) {
+                            context.moveTo(startX, yBotStart);
+                            context.lineTo(startX, yBotPeak);
+                            context.lineTo(endX, yBotPeak);
+                            context.lineTo(endX, yBotStart);
+                        } else if (diff === 1) {
+                            context.moveTo(startX, yBotStart);
+                            context.lineTo(drawMidX, yBotPeak + 2);
+                            context.lineTo(endX, yBotStart);
+                        }
+                    }
+                    context.stroke();
+                }
+            }
+            
+            // 다이아토닉 코드 (장/단 화음 로마숫자) 표시
+            context.setFont("Arial", 14, "bold");
+            context.setFillStyle("#e74c3c");
+            
+            let diatonic = [];
+            if (scaleType === 'minor') {
+                if (stackChords === '4') diatonic = ['im7', 'iiø7', 'IIImaj7', 'ivm7', 'vm7', 'VImaj7', 'VII7', 'im7'];
+                else diatonic = ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII', 'i'];
+            } else {
+                if (stackChords === '4') diatonic = ['Imaj7', 'ii7', 'iii7', 'IVmaj7', 'V7', 'vi7', 'viiø7', 'Imaj7'];
+                else diatonic = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°', 'I'];
+            }
+
+            for (let i = 0; i < notes.length; i++) {
+                const x = notes[i].getAbsoluteX() + 15;
+                const y = 190; // 온음/반음 기호보다 살짝 아래에 배치
+                context.fillText(diatonic[i] || '', x - 8, y);
             }
         } else if (dataType === 'chord') {
-            // 화음(Triad)인 경우 온음/반음 기호 대신 로마 숫자(I, III, V)를 표시
             context.setFont("Arial", 16, "bold");
             context.setFillStyle("#0984e3");
             
-            const romanNumerals = ['I', 'III', 'V', 'Chord'];
+            const romanNumerals = ['Chord', 'I', 'III', 'V', 'VII'];
             
             for (let i = 0; i < notes.length; i++) {
                 const x = notes[i].getAbsoluteX() + 15;
                 const y = 165; // 음표와 떨어지도록 아래로 이동
                 
                 const text = romanNumerals[i] || '';
-                const offsetX = text === 'Chord' ? 20 : 8; // 'Chord' 텍스트는 길이가 길어 중앙 정렬을 위해 오프셋 조정
+                const offsetX = text === 'Chord' ? 20 : 8;
                 context.fillText(text, x - offsetX, y);
             }
         }
