@@ -53,9 +53,9 @@ function renderPiano(notesData, dataType = 'scale', scaleType = 'major', stackCh
         activeMidiNumbers = notesData.map(n => n.piano_key).filter(k => k != null);
     }
 
-    // 렌더링할 건반 범위: C4(60) ~ C6(84) - 2옥타브 분량
-    const START_MIDI = 60;
-    const END_MIDI = 84;
+    // 렌더링할 건반 범위: C2(36) ~ C5(72) - 3옥타브 분량 (기타 저음역대인 E2=40 포함)
+    const START_MIDI = 36;
+    const END_MIDI = 72;
     
     const whiteKeyWidth = 40;
     const blackKeyWidth = 24;
@@ -70,22 +70,25 @@ function renderPiano(notesData, dataType = 'scale', scaleType = 'major', stackCh
 
     let keysHtml = '';
     let currentLeft = 0; // 백건의 x축 위치(left) 추적
-    let midiToCenterX = {}; // 건반 중심 X좌표 저장용
 
     for (let midi = START_MIDI; midi <= END_MIDI; midi++) {
         const isBlack = isBlackKey(midi);
         const isActive = activeMidiNumbers.includes(midi);
         const activeClass = isActive ? 'active' : '';
-        const label = noteNames[midi % 12];
+        let label = noteNames[midi % 12];
+
+        // C(도) 건반에 옥타브 번호를 표기하여 현재 위치를 정확히 알 수 있게 합니다. (예: C2, C3, C4)
+        if (midi % 12 === 0) {
+            const octave = Math.floor(midi / 12) - 1;
+            label = `<strong style="color:#d35400; font-size:14px;">C${octave}</strong>`;
+        }
 
         if (isBlack) {
             // 흑건은 이전 백건과 현재 백건의 경계선에 걸치도록 위치 조정
             const leftPos = currentLeft - (blackKeyWidth / 2);
-            midiToCenterX[midi] = leftPos + (blackKeyWidth / 2); // 흑건의 정중앙 X좌표
             keysHtml += `<div class="key black ${activeClass}" data-midi="${midi}" style="left: ${leftPos}px; width: ${blackKeyWidth}px; height: ${heightBlack}px;" onclick="playTone(${midi}); if(window.highlightStaffNote) window.highlightStaffNote(${midi});"><span>${label}</span></div>`;
         } else {
             // 백건은 순차적으로 배치 후 너비만큼 x축 이동
-            midiToCenterX[midi] = currentLeft + (whiteKeyWidth / 2); // 백건의 정중앙 X좌표
             keysHtml += `<div class="key white ${activeClass}" data-midi="${midi}" style="left: ${currentLeft}px; width: ${whiteKeyWidth}px; height: ${heightWhite}px;" onclick="playTone(${midi}); if(window.highlightStaffNote) window.highlightStaffNote(${midi});"><span>${label}</span></div>`;
             currentLeft += whiteKeyWidth;
         }
@@ -93,9 +96,11 @@ function renderPiano(notesData, dataType = 'scale', scaleType = 'major', stackCh
 
     // 생성된 건반들을 감싸는 피아노 몸체(board) 렌더링
     container.innerHTML = `
-        <div style="background: #333; padding: 25px 15px 15px 15px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin-top: 10px;">
-            <div style="position: relative; width: ${currentLeft}px; height: ${heightWhite}px; margin: 0 auto;">
-                ${keysHtml}
+        <div style="width: 100%; overflow-x: auto; padding-bottom: 15px;">
+            <div style="background: #333; padding: 25px 15px 15px 15px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.3); margin-top: 10px; min-width: ${currentLeft + 30}px;">
+                <div style="position: relative; width: ${currentLeft}px; height: ${heightWhite}px; margin: 0 auto;">
+                    ${keysHtml}
+                </div>
             </div>
         </div>
     `;

@@ -3,10 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>통합 음악 시각화 웹 서비스</title>
+    <title>악보/피아노/기타 코드 시각화</title>
     <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 10px; background-color: #f5f5f5; margin: 0; }
+        body { 
+            font-family: sans-serif; 
+            padding: 10px; 
+            margin: 0; 
+            background-color: #fafafa;
+            background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='60'><line x1='0' y1='10' x2='150' y2='10' stroke='%23e9e9e9' stroke-width='1'/><line x1='0' y1='18' x2='150' y2='18' stroke='%23e9e9e9' stroke-width='1'/><line x1='0' y1='26' x2='150' y2='26' stroke='%23e9e9e9' stroke-width='1'/><line x1='0' y1='34' x2='150' y2='34' stroke='%23e9e9e9' stroke-width='1'/><line x1='0' y1='42' x2='150' y2='42' stroke='%23e9e9e9' stroke-width='1'/></svg>");
+        }
         h1 { text-align: center; color: #333; margin: 10px 0 15px 0; font-size: 24px; }
         .container { display: flex; flex-direction: column; gap: 10px; }
         .view-box { background: white; border: 1px solid #ccc; border-radius: 8px; padding: 10px; text-align: center; }
@@ -41,7 +47,7 @@
     </style>
 </head>
 <body>
-    <h1>통합 음악 시각화</h1>
+    <h1>악보/피아노/기타 코드 시각화</h1>
     
     <div id="controls">
         <select id="root-note">
@@ -53,16 +59,16 @@
             <option value="A">A</option>
             <option value="B">B</option>
         </select>
-        <select id="category" onchange="updateTypes()">
-            <option value="scale">스케일 (Scale)</option>
-            <option value="triad">3화음 (Triad)</option>
-            <option value="seventh">7화음 (7th Chord)</option>
-        </select>
+        <select id="category" onchange="updateTypes()"></select>
         <select id="type"></select>
         <select id="stack-chords">
             <option value="1">단일음</option>
             <option value="3">3화음 쌓기</option>
             <option value="4">7화음 쌓기</option>
+        </select>
+        <select id="chord-display-mode">
+            <option value="first">대표 코드 1개만 보기</option>
+            <option value="all">유사 코드 모두 보기</option>
         </select>
         <button onclick="fetchAndRender()">렌더링</button>
     </div>
@@ -83,9 +89,16 @@
         </div>
     </div>
 
-    <script src="/js/api.js"></script>
-    <script src="/js/renderers/staffRenderer.js"></script>
-    <script src="/js/renderers/pianoRenderer.js"></script>
-    <script src="/js/renderers/guitarRenderer.js"></script>
+    <!-- 1. 코드 데이터베이스 로드 (가장 먼저) -->
+    <!-- <script src="js/data/chord-collections.js"></script> -->
+    <script src="js/data/chord-collections-all.js"></script>
+
+    <!-- 2. 렌더러 함수들 로드 -->
+    <script src="js/renderers/staffRenderer.js"></script>
+    <script src="js/renderers/pianoRenderer.js"></script>
+    <script src="js/renderers/guitarRenderer.js"></script>
+
+    <!-- 3. 메인 로직 로드 (반드시 모든 준비가 끝난 후 마지막에 위치) -->
+    <script src="js/api.js"></script>
 </body>
 </html>

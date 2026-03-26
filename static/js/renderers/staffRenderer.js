@@ -2,6 +2,7 @@ window.currentStaffNotesData = null;
 window.currentDataType = 'scale';
 window.currentScaleType = 'major';
 window.currentStackChords = '1';
+window.currentSuffix = '';
 window.activeStaffMidis = [];
 
 window.highlightStaffNote = function(midi) {
@@ -10,27 +11,53 @@ window.highlightStaffNote = function(midi) {
 
 window.highlightStaffNotes = function(midisArray) {
     window.activeStaffMidis = midisArray;
-    if (window.currentStaffNotesData) renderStaff(window.currentStaffNotesData, window.currentDataType, window.currentScaleType, window.currentStackChords);
+    if (window.currentStaffNotesData) {
+        renderStaff(window.currentStaffNotesData, window.currentDataType, window.currentScaleType, window.currentStackChords, window.currentSuffix);
+    }
 };
 
 /**
  * VexFlow 초기화 및 악보 그리기 로직
  */
-function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackChords = '1') {
+function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackChords = '1', suffix = '') {
     window.currentStaffNotesData = notesData;
     window.currentDataType = dataType;
     window.currentScaleType = scaleType;
     window.currentStackChords = stackChords;
+    window.currentSuffix = suffix;
     const container = document.getElementById("vexflow-container");
     container.innerHTML = ""; // 기존 악보 초기화
 
     try {
         const VF = Vex.Flow;
         const renderer = new VF.Renderer(container, VF.Renderer.Backends.SVG);
-        renderer.resize(850, 230); // 기호를 그릴 여백(로마숫자 아래 텍스트 포함)을 위해 캔버스 높이 추가 증가 및 가로 넓이 확장
+        renderer.resize(850, 230); // 한 줄로 합쳤으므로 캔버스 높이를 원래대로 복구
         
         const context = renderer.getContext();
-        const stave = new VF.Stave(10, 40, 800); // 오선지 가로 길이 확장
+        
+        // 1. 조표를 그릴 짧은 앞쪽 오선지 (조표 + 높은음자리표)
+        const rootNote = document.getElementById('root-note') ? document.getElementById('root-note').value : 'C';
+        let keySigStr = rootNote.replace(/-/g, 'b');
+        if (scaleType && scaleType.includes('minor')) {
+            keySigStr += 'm';
+        }
+        
+        const keySigStave = new VF.Stave(10, 40, 90); // Y좌표를 40으로 맞추고 넓이를 90으로 약간 줄임
+        keySigStave.addClef("treble");
+        
+        try {
+            keySigStave.addKeySignature(keySigStr);
+        } catch (e) {
+            // VexFlow에서 처리할 수 없는 이명동음의 경우 변환해서 렌더링 (예: D# -> Eb)
+            const enharmonicMap = { 'A#': 'Bb', 'D#': 'Eb', 'G#': 'Ab', 'A#m': 'Bbm', 'D#m': 'Ebm', 'G#m': 'Abm' };
+            if (enharmonicMap[keySigStr]) {
+                try { keySigStave.addKeySignature(enharmonicMap[keySigStr]); } catch (e2) {}
+            }
+        }
+        keySigStave.setContext(context).draw();
+
+        // 2. 음표를 그릴 메인 오선지 (앞쪽 조표 오선지와 분리된 상태로 같은 줄에 렌더링)
+        const stave = new VF.Stave(120, 40, 710); // X좌표를 120으로 주어 여백 확보, Y좌표는 조표와 같게 통일
         stave.addClef("treble").setContext(context).draw();
 
         // 백엔드에서 전달된 pitch(예: C4, B-4)를 VexFlow 포맷(c/4, bb/4)으로 변환
@@ -100,7 +127,7 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
         const voice = new VF.Voice({ num_beats: notes.length, beat_value: 4 });
         voice.addTickables(notes);
 
-        new VF.Formatter().joinVoices([voice]).format([voice], 750); // 음표 간격 넓게 배치
+        new VF.Formatter().joinVoices([voice]).format([voice], 550); // 음표 간격 약간 줄임
         voice.draw(context, stave);
         
         // 오선지에 그려진 각 음표(Note)에 클릭 이벤트 추가 (마우스로 직접 연주)
@@ -127,8 +154,24 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
                         midisToPlay = [notesData[i - 1].piano_key];
                     }
                 }
-                if (window.playMultipleTones) window.playMultipleTones(midisToPlay);
-                if (window.highlightPianoKeys) window.highlightPianoKeys(midisToPlay);
+                
+                // [요청사항] 음이 여러 개(코드)일 경우 동시 재생, 하나일 경우 단일음(아르페지오) 재생
+                if (midisToPlay.length > 1) {
+                    // 동시 재생: 모든 음을 한 번에 연주하고, 피아노와 오선지를 동시에 하이라이트
+                    if (window.playMultipleTones) window.playMultipleTones(midisToPlay);
+                    if (window.highlightPianoKeys) window.highlightPianoKeys(midisToPlay);
+                    
+                    // 일정 시간 후 하이라이트 해제
+                    setTimeout(() => {
+                        if (window.highlightPianoKeys) window.highlightPianoKeys([]);
+                        if (window.highlightStaffNotes) window.highlightStaffNotes([]);
+                    }, 400);
+                } else {
+                    // 단일음 재생: 기존 아르페지오 함수를 사용 (단일음도 처리 가능)
+                    if (window.playArpeggio) {
+                        window.playArpeggio(midisToPlay, 90);
+                    }
+                }
             });
         });
 
@@ -150,43 +193,25 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
                     const x2 = notes[i + 1].getAbsoluteX() + 15;
                     
                     // 각 표시가 서로 떨어져 보이도록 좌우 여백(gap) 추가
-                    const gap = 4;
+                    const gap = 12; // 여백을 더 늘려서 온/반음 표시 폭을 좁힘
                     const startX = x1 + gap;
                     const endX = x2 - gap;
                     const drawMidX = (startX + endX) / 2;
                     
-                    // 4번째 음(인덱스 3)과 5번째 음(인덱스 4) 사이는 위로 그리기
-                    const isTop = (i === 3); 
-
                     context.beginPath();
-                    if (isTop) {
-                        const yTopStart = 45;
-                        const yTopPeak = 20;
-                        
-                        if (diff === 2) {
-                            context.moveTo(startX, yTopStart);
-                            context.lineTo(startX, yTopPeak);
-                            context.lineTo(endX, yTopPeak);
-                            context.lineTo(endX, yTopStart);
-                        } else if (diff === 1) {
-                            context.moveTo(startX, yTopStart);
-                            context.lineTo(drawMidX, yTopPeak - 2);
-                            context.lineTo(endX, yTopStart);
-                        }
-                    } else {
-                        const yBotStart = 135;
-                        const yBotPeak = 170;
-                        
-                        if (diff === 2) {
-                            context.moveTo(startX, yBotStart);
-                            context.lineTo(startX, yBotPeak);
-                            context.lineTo(endX, yBotPeak);
-                            context.lineTo(endX, yBotStart);
-                        } else if (diff === 1) {
-                            context.moveTo(startX, yBotStart);
-                            context.lineTo(drawMidX, yBotPeak + 2);
-                            context.lineTo(endX, yBotStart);
-                        }
+
+                    const yBotStart = 150; // 낮은 음표와 겹치지 않도록 아래로 더 내림
+                    const yBotPeak = 170;  
+                    
+                    if (diff === 2) {
+                        context.moveTo(startX, yBotStart);
+                        context.lineTo(startX, yBotPeak);
+                        context.lineTo(endX, yBotPeak);
+                        context.lineTo(endX, yBotStart);
+                    } else if (diff === 1) {
+                        context.moveTo(startX, yBotStart);
+                        context.lineTo(drawMidX, yBotPeak + 2);
+                        context.lineTo(endX, yBotStart);
                     }
                     context.stroke();
                 }
@@ -202,7 +227,7 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
 
             for (let i = 0; i < notes.length; i++) {
                 const x = notes[i].getAbsoluteX() + 15;
-                const y = 190; // 온음/반음 기호보다 살짝 아래에 배치
+                const y = 18; // 분수코드 베이스음 중첩 방지를 위해 텍스트를 오선지 상단 여백으로 이동
                 
                 context.setFont("Arial", 14, "bold");
                 context.setFillStyle("#e74c3c");
@@ -238,18 +263,18 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
                 
                 // 코드 이름 길이에 따라 x 좌표 살짝 보정 (가운데 정렬 느낌)
                 let offsetX = 4 + (chordName.length * 3);
-                context.fillText(chordName, x - offsetX, y + 20); // y를 더하여 로마숫자 밑으로 이동
+                context.fillText(chordName, x - offsetX, y + 22); // 글자 겹침 방지를 위해 간격을 더 띄움
                 context.restore();
             }
         } else if (dataType === 'chord') {
             context.setFont("Arial", 16, "bold");
             context.setFillStyle("#0984e3");
             
-            const romanNumerals = ['Chord', 'I', 'III', 'V', 'VII'];
+            const romanNumerals = ['Chord', 'I', 'III', 'V', 'VII']; // This seems to be for scales, but let's keep it for now.
             
             for (let i = 0; i < notes.length; i++) {
                 const x = notes[i].getAbsoluteX() + 15;
-                const y = 165; // 음표와 떨어지도록 아래로 이동
+                const y = 18; // 분수코드 중첩 방지를 위해 오선지 위쪽으로 텍스트 이동
                 
                 const text = romanNumerals[i] || '';
                 const offsetX = text === 'Chord' ? 20 : 8;
@@ -257,26 +282,17 @@ function renderStaff(notesData, dataType = 'scale', scaleType = 'major', stackCh
 
                 // 단일 화음(Chord) 렌더링 모드일 때 맨 앞 블록 코드 밑에 실제 코드 네임 표시
                 if (i === 0 && notesData.length > 0) {
-                    let cleanNote = notesData[0].pitch.replace(/[0-9]/g, '').replace(/-/g, 'b');
-                    let chordName = cleanNote;
+                    // [수정] 분수코드의 경우 notesData[0]가 베이스음이 되므로, 
+                    // 구성음이 아닌 사용자가 선택한 실제 근음(rootNote)을 바탕으로 코드 네임 생성
+                    let cleanRoot = rootNote.replace(/-/g, 'b');
+                    cleanRoot = cleanRoot.charAt(0).toUpperCase() + cleanRoot.slice(1);
                     
-                    const chordSuffix = {
-                        'minor': 'm',
-                        'diminished': 'dim',
-                        'augmented': 'aug',
-                        'maj7': 'maj7',
-                        'm7': 'm7',
-                        '7': '7',
-                        'm7b5': 'm7b5',
-                        'dim7': 'dim7'
-                    };
-                    
-                    if (chordSuffix[scaleType]) chordName += chordSuffix[scaleType];
+                    let chordName = cleanRoot + suffix;
 
                     context.save();
                     context.setFont("Arial", 15, "bold");
                     context.setFillStyle("#e74c3c"); 
-                    context.fillText(chordName, x - 12, y + 22); // 로마숫자 밑으로 이동
+                    context.fillText(chordName, x - 12, y + 22); // 글자 겹침 방지를 위해 간격을 더 띄움
                     context.restore();
                 }
             }
