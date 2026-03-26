@@ -1,6 +1,6 @@
 /**
  * 기타 코드 다이어그램(Chord Box) 및 스케일 지판 렌더링 로직
- * ChordJS 라이브러리를 활용하여 Canvas로 렌더링하도록 간소화
+ * 외부 라이브러리 없이 자체 구현한 순수 SVG 그래픽을 활용하여 렌더링
  */
 function renderGuitar(chordDataList, chordName) {
     const container = document.getElementById("guitar-container");
